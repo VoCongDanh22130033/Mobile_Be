@@ -43,7 +43,8 @@ public class SecurityConfig {
 						.requestMatchers(
 								"/admin/login",
 								"/customer/login",
-								"/customer/signup"
+								"/customer/signup",
+								"/customer/cart"
 						).permitAll()
 						.requestMatchers("/admin/**").hasAuthority(Role.ADMIN.name())
 						.requestMatchers("/seller/**").hasAuthority(Role.SELLER.name())

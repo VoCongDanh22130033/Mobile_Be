@@ -107,8 +107,6 @@ public class CustomerDA {
         }
         return p;
     }
-
-
     public Product getProduct(int productId) {
         Product p = null;
         try {
@@ -142,7 +140,6 @@ public class CustomerDA {
         }
         return p;
     }
-
     public List<Product> getProducts() {
         List<Product> list = new ArrayList<>();
         try {
@@ -179,7 +176,6 @@ public class CustomerDA {
         }
         return list;
     }
-
     // Add Card
     public CartItem addToCart(CartItem a) {
         try {
@@ -205,7 +201,6 @@ public class CustomerDA {
         }
         return null;
     }
-
     public boolean updateCart(CartItem a) {
         try {
             pst = db.get().prepareStatement("UPDATE carts SET quantity = ?, sub_total = ? WHERE id = ?");
@@ -221,7 +216,6 @@ public class CustomerDA {
         }
         return false;
     }
-
     public boolean removeFromCart(int id) {
         try {
             pst = db.get().prepareStatement("DELETE FROM carts WHERE id = ?");
@@ -329,9 +323,13 @@ public class CustomerDA {
                 pstDetails.executeBatch();
 
                 // 3. Xóa giỏ hàng
-                PreparedStatement pstCart = db.get().prepareStatement("DELETE FROM carts WHERE id = ?");
+                // 3. Xóa giỏ hàng (ĐÚNG)
+                PreparedStatement pstCart = db.get().prepareStatement(
+                        "DELETE FROM carts WHERE customer_id = ?"
+                );
                 pstCart.setInt(1, order.getCustomerId());
                 pstCart.executeUpdate();
+
 
                 return order;
             }

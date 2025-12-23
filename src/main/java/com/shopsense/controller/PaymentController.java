@@ -1,7 +1,9 @@
 package com.shopsense.controller;
 
+import com.shopsense.service.PaymentService; // Import Service
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired; // Import Autowired
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -21,6 +23,9 @@ import java.util.*;
 @Slf4j
 public class PaymentController {
 
+    @Autowired
+    private PaymentService paymentService; // 1. Inject Service để lưu DB
+
     // --- Cấu hình VNPay từ application.properties ---
     @Value("${vnpay.tmnCode}")
     private String vnpTmnCode;
@@ -36,7 +41,6 @@ public class PaymentController {
     private final String VNP_VERSION = "2.1.0";
     private final String VNP_COMMAND = "pay";
 
-    // Sử dụng setter để Trim() giá trị Hash Secret, tránh lỗi ký tự ẩn
     @Value("${vnpay.hashSecret}")
     public void setVnpHashSecret(String hashSecret) {
         this.vnpHashSecret = hashSecret.trim();
@@ -53,23 +57,39 @@ public class PaymentController {
     public Map<String, String> createPayment(@RequestBody Map<String, Object> body, HttpServletRequest request) throws Exception {
         log.info("💸 [CREATE] Request received. Body: {}", body);
 
-        String orderId = String.valueOf(System.currentTimeMillis());
+        // --- 2. SỬA ĐỔI QUAN TRỌNG: Lấy ID thật và tạo TxnRef chuẩn ---
+
+        // Lấy số tiền
         int amountInt = (Integer) body.getOrDefault("amount", 0);
-        String amount = String.valueOf((long) amountInt * 100); // VNPay yêu cầu nhân 100
+
+        // Lấy Order ID thật từ App gửi lên (Ví dụ: 1, 2, 3...)
+        // App Flutter phải gửi JSON: { "amount": 100000, "orderId": 1 }
+        Object orderIdObj = body.get("orderId");
+        if (orderIdObj == null) {
+            throw new Exception("Lỗi: Thiếu 'orderId' trong body request");
+        }
+        String realOrderId = String.valueOf(orderIdObj);
+
+        // Tạo mã tham chiếu duy nhất: ID_ThờiGian (Ví dụ: 1_1766472212283)
+        String vnp_TxnRef = realOrderId + "_" + System.currentTimeMillis();
+
+        String amount = String.valueOf((long) amountInt * 100);
         String vnpCreateDate = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
 
-        // Sử dụng TreeMap để đảm bảo các key được sắp xếp theo thứ tự từ điển A-Z
         Map<String, String> vnpParams = new TreeMap<>();
         vnpParams.put("vnp_Version", VNP_VERSION);
         vnpParams.put("vnp_Command", VNP_COMMAND);
         vnpParams.put("vnp_TmnCode", vnpTmnCode);
         vnpParams.put("vnp_Amount", amount);
         vnpParams.put("vnp_CurrCode", "VND");
-        vnpParams.put("vnp_TxnRef", orderId);
-        vnpParams.put("vnp_OrderInfo", "Payment order #" + orderId);
+
+        // Dùng mã tham chiếu vừa tạo
+        vnpParams.put("vnp_TxnRef", vnp_TxnRef);
+        vnpParams.put("vnp_OrderInfo", "Payment order #" + realOrderId); // Hiển thị ID thật cho đẹp
+
         vnpParams.put("vnp_OrderType", "other");
         vnpParams.put("vnp_Locale", "vn");
-        vnpParams.put("vnp_ReturnUrl", vnpReturnUrl); // URL mà VNPAY sẽ gọi về backend của bạn
+        vnpParams.put("vnp_ReturnUrl", vnpReturnUrl);
         vnpParams.put("vnp_IpAddr", getIpAddress(request));
         vnpParams.put("vnp_CreateDate", vnpCreateDate);
 
@@ -79,7 +99,7 @@ public class PaymentController {
 
         log.info("💸 [CREATE] Prepared VNPAY Params (A-Z): {}", vnpParams);
 
-        // Build data for hash and query
+        // Build data for hash and query (Phần này giữ nguyên)
         List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
         StringBuilder hashData = new StringBuilder();
         StringBuilder queryUrl = new StringBuilder();
@@ -88,11 +108,9 @@ public class PaymentController {
             String fieldName = itr.next();
             String fieldValue = vnpParams.get(fieldName);
             if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                //Build hash data
                 hashData.append(fieldName);
                 hashData.append('=');
                 hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
-                //Build query
                 queryUrl.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII.toString()));
                 queryUrl.append('=');
                 queryUrl.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
@@ -112,34 +130,48 @@ public class PaymentController {
 
         Map<String, String> response = new HashMap<>();
         response.put("paymentUrl", paymentUrl);
-        response.put("orderId", orderId);
+        response.put("orderId", realOrderId); // Trả về ID thật
         return response;
     }
 
     /**
      * API trả về mà VNPAY gọi.
-     * Sửa Lỗi: Thay vì trả về "redirect:", API này sẽ trả về một trang HTML
-     * chứa JavaScript để thực hiện chuyển hướng về ứng dụng phía client.
      */
     @GetMapping("/return")
     public ResponseEntity<String> paymentReturn(HttpServletRequest request) throws UnsupportedEncodingException {
         log.info("↩️ [RETURN] Callback URL received: {}", request.getRequestURL().toString() + "?" + request.getQueryString());
 
-        // --- Logic xác thực chữ ký (giữ nguyên để đảm bảo an toàn) ---
-        // ... (Bạn có thể thêm logic xác thực hash tại đây nếu cần)
+        // --- 3. SỬA ĐỔI QUAN TRỌNG: Gọi Service để lưu Database ---
+        try {
+            // Chuyển params từ request sang Map để Service xử lý
+            Map<String, String> fields = new HashMap<>();
+            for (Enumeration<String> params = request.getParameterNames(); params.hasMoreElements(); ) {
+                String fieldName = params.nextElement();
+                String fieldValue = request.getParameter(fieldName);
+                if ((fieldValue != null) && (fieldValue.length() > 0)) {
+                    fields.put(fieldName, fieldValue);
+                }
+            }
+
+            // GỌI SERVICE - ĐÂY LÀ BƯỚC QUAN TRỌNG NHẤT ĐỂ INSERT DB
+            paymentService.processVnPayReturn(fields);
+
+        } catch (Exception e) {
+            log.error("❌ Error processing payment return: ", e);
+            // Vẫn tiếp tục chạy để redirect về app, không chặn người dùng
+        }
+        // ---------------------------------------------------------
 
         // --- Tạo Deep Link để trả về cho App ---
         String deepLinkUrl = createDeepLinkUrl(request);
         log.info("↩️ Generated Deep Link URL for client-side redirection: {}", deepLinkUrl);
 
-        // Tạo nội dung HTML với JavaScript để chuyển hướng
         String htmlContent = "<!DOCTYPE html><html><head><title>Redirecting...</title></head>"
                 + "<body style='display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; font-family:sans-serif; background-color:#f8f9fa;'>"
-                + "<h3>Please wait...</h3>"
+                + "<h3>Processing Payment...</h3>"
                 + "<p>Redirecting back to the application.</p>"
-                + "<p>Vui lòng chờ, đang chuyển hướng về ứng dụng...</p>"
                 + "<script type='text/javascript'>"
-                + "window.location.href = '" + deepLinkUrl + "';" // Dòng JS quan trọng nhất
+                + "window.location.href = '" + deepLinkUrl + "';"
                 + "</script>"
                 + "</body></html>";
 
@@ -149,7 +181,7 @@ public class PaymentController {
         return new ResponseEntity<>(htmlContent, headers, HttpStatus.OK);
     }
 
-    // --- Các hàm tiện ích (không thay đổi) ---
+    // --- Các hàm tiện ích (Giữ nguyên) ---
 
     private String getIpAddress(HttpServletRequest request) {
         String ipAddress = request.getHeader("X-FORWARDED-FOR");
@@ -168,7 +200,6 @@ public class PaymentController {
             String key = parameterNames.nextElement();
             String value = request.getParameter(key);
             if (value != null && !value.isEmpty()) {
-                // Bỏ qua các tham số hash để không làm lộ thông tin nhạy cảm
                 if (key.equals("vnp_SecureHash") || key.equals("vnp_SecureHashType")) {
                     continue;
                 }

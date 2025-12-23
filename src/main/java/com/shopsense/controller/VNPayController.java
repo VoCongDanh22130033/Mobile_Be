@@ -1,39 +1,45 @@
 package com.shopsense.controller;
 
-import org.springframework.http.ResponseEntity;
+import com.shopsense.service.PaymentService;
+import jakarta.servlet.http.HttpServletResponse; // Dùng javax.servlet... nếu bản cũ
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
 import org.springframework.web.util.UriComponentsBuilder;
-// THÊM 2 DÒNG IMPORT NÀY
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+
+import java.io.IOException;
+import java.util.Map;
 
 @RestController
 public class VNPayController {
 
-    // CHÚ Ý: Đổi kiểu trả về từ ResponseEntity<?> sang String
+    @Autowired
+    private PaymentService paymentService;
+
     @GetMapping("/vnpay_return")
-    public String vnpayReturn(@RequestParam Map<String, String> params) {
+    public void vnpayReturn(@RequestParam Map<String, String> params, HttpServletResponse response) throws IOException {
+        System.out.println("--------------------------------------------------");
+        System.out.println("!!! ĐÃ NHẬN ĐƯỢC CALLBACK TỪ VNPAY !!!");
+        System.out.println("Params: " + params.toString());
+        System.out.println("--------------------------------------------------");
 
-        // 1. In ra toàn bộ tham số để kiểm tra
-        System.out.println("VNPAY RETURN PARAMS: " + params);
+        // 1. GỌI SERVICE ĐỂ LƯU DATABASE
+        paymentService.processVnPayReturn(params);
 
-        // 2. CHUYỂN ĐỔI MAP TIÊU CHUẨN SANG MULTIVALUEMAP (FIX LỖI BIÊN DỊCH)
+        // 2. Xây dựng Deep Link để mở lại App Flutter
         MultiValueMap<String, String> multiMap = new LinkedMultiValueMap<>();
-        params.forEach((k, v) -> multiMap.add(k, v)); // Thêm từng cặp key-value
+        params.forEach((k, v) -> multiMap.add(k, v));
 
-        // 3. Xây dựng Deep Link URI
-        // Sử dụng MultiValueMap đã chuyển đổi
         UriComponentsBuilder uriBuilder = UriComponentsBuilder
                 .fromUriString("myshopsense://vnpay_return")
-                .queryParams(multiMap); // Sử dụng multiMap đã chuyển đổi
+                .queryParams(multiMap);
 
         String deepLinkUri = uriBuilder.toUriString();
 
-        // 4. Trả về lệnh chuyển hướng (REDIRECT)
-        return "redirect:" + deepLinkUri;
+        // 3. Thực hiện Redirect chuẩn bằng HttpServletResponse
+        response.sendRedirect(deepLinkUri);
     }
 }
