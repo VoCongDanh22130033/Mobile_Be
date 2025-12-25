@@ -14,7 +14,6 @@ import com.shopsense.dao.SellerDA;
 import com.shopsense.dto.AuthRequest;
 import com.shopsense.dto.AuthResponse;
 import com.shopsense.security.JwtService;
-import com.shopsense.model.Customer;
 
 @Service
 public class AuthService {
@@ -72,7 +71,7 @@ public class AuthService {
 				.status("success")
 				.token(token)
 				.role(role)
-				.user((Customer) user)
+				.user(user)  // Trả về Object, không cast
 				.build();
 	}
 }

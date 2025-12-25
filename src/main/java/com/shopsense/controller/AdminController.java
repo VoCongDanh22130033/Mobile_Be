@@ -4,7 +4,9 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,9 +44,19 @@ public class AdminController {
 		return da.getAllProducts();
 	}
 
+	@PostMapping(value = "/admin/product")
+	public Product createProduct(@RequestBody Product a) {
+		return da.createProduct(a);
+	}
+
 	@PutMapping(value = "/admin/product")
 	public Product updateProduct(@RequestBody Product a) {
 		return da.updateProduct(a);
+	}
+
+	@DeleteMapping(value = "/admin/product/{id}")
+	public boolean deleteProduct(@PathVariable("id") int id) {
+		return da.deleteProduct(id);
 	}
 
 	@GetMapping(value = "/admin/sellers")

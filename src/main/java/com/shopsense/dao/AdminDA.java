@@ -54,7 +54,9 @@ public class AdminDA {
 		List<Product> list = new ArrayList<>();
 		try {
 			pst = db.get().prepareStatement(
-					"SELECT product_id, title, thumbnail_url, description, regular_price, sale_price, category, stock_status, stock_count, products.status, store_name FROM products JOIN sellers USING(seller_id)");
+					"SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, p.category, p.stock_status, p.stock_count, p.status, s.store_name, p.seller_id " +
+					"FROM products p " +
+					"JOIN sellers s ON p.seller_id = s.id");
 			ResultSet rs = pst.executeQuery();
 			Product p;
 			while (rs.next()) {
@@ -70,27 +72,81 @@ public class AdminDA {
 				p.setStockCount(rs.getString(9));
 				p.setStatus(rs.getString(10));
 				p.setStoreName(rs.getString(11));
+				p.setSellerId(rs.getInt(12));
 				list.add(p);
 			}
 		} catch (Exception e) {
 			System.out.println(e);
+			e.printStackTrace(); // In lỗi để debug
 		}
 		return list;
 	}
 
-	public Product updateProduct(Product a) {
+	public Product createProduct(Product a) {
 		try {
-			pst = db.get().prepareStatement("UPDATE products SET status = ? WHERE product_id = ?");
-			pst.setString(1, a.getStatus());
-			pst.setInt(2, a.getId());
+			pst = db.get().prepareStatement(
+					"INSERT INTO products (title, thumbnail_url, description, regular_price, sale_price, category, stock_status, stock_count, seller_id, status)"
+							+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+			pst.setString(1, a.getTitle());
+			pst.setString(2, a.getThumbnailUrl());
+			pst.setString(3, a.getDescription());
+			pst.setString(4, a.getRegularPrice());
+			pst.setString(5, a.getSalePrice());
+			pst.setString(6, a.getCategory());
+			pst.setString(7, a.getStockStatus());
+			pst.setString(8, a.getStockCount());
+			pst.setInt(9, a.getSellerId());
+			pst.setString(10, a.getStatus() != null ? a.getStatus() : "Pending");
 			int x = pst.executeUpdate();
 			if (x != -1) {
 				return a;
 			}
 		} catch (Exception e) {
 			System.out.println(e);
+			e.printStackTrace();
 		}
 		return null;
+	}
+
+	public Product updateProduct(Product a) {
+		try {
+			pst = db.get().prepareStatement(
+					"UPDATE products SET title = ?, thumbnail_url = ?, description = ?, regular_price = ?, sale_price = ?, category = ?, stock_status = ?, stock_count = ?, status = ? WHERE id = ?");
+			pst.setString(1, a.getTitle());
+			pst.setString(2, a.getThumbnailUrl());
+			pst.setString(3, a.getDescription());
+			pst.setString(4, a.getRegularPrice());
+			pst.setString(5, a.getSalePrice());
+			pst.setString(6, a.getCategory());
+			pst.setString(7, a.getStockStatus());
+			pst.setString(8, a.getStockCount());
+			pst.setString(9, a.getStatus());
+			pst.setInt(10, a.getId());
+			int x = pst.executeUpdate();
+			if (x != -1) {
+				return a;
+			}
+		} catch (Exception e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	public boolean deleteProduct(int id) {
+		boolean success = false;
+		try {
+			pst = db.get().prepareStatement("DELETE FROM products WHERE id = ?");
+			pst.setInt(1, id);
+			int r = pst.executeUpdate();
+			if (r != -1) {
+				success = true;
+			}
+		} catch (Exception e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return success;
 	}
 
 	public List<Seller> getAllSellers() {

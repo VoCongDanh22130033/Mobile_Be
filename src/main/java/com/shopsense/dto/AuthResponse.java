@@ -1,6 +1,5 @@
 package com.shopsense.dto;
 
-import com.shopsense.model.Customer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,6 +12,6 @@ import lombok.NoArgsConstructor;
 public class AuthResponse {
 	private String status;
 	private String token;
-	private Customer user;  // ✅ sửa từ Object -> Customer
+	private Object user;  // Object có thể là Customer, Admin, Seller
 	private String role;
 }
