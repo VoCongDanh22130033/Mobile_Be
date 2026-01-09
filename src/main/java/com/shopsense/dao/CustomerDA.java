@@ -28,34 +28,40 @@ public class CustomerDA {
     @Autowired
     EmailService mailer;
     // find By Email
-    public Customer findByEmail(String email) throws UsernameNotFoundException {
-        Customer customer = null;
+    public Customer findByEmail(String email) {
         try {
             pst = db.get().prepareStatement(
-                    "SELECT c.id, c.name, c.email, c.role, c.address, c.password, c.img " +
-                            "FROM customers c WHERE c.email = ?"
+                    "SELECT id, name, email, password, role, address, img " +
+                            "FROM customers WHERE email = ?"
             );
-
             pst.setString(1, email);
+
             ResultSet rs = pst.executeQuery();
+
             if (rs.next()) {
-                customer = new Customer();
-                customer.setId(rs.getInt(1));
-                customer.setName(rs.getString(2));
-                customer.setEmail(rs.getString(3));
-                customer.setRole(Role.valueOf(rs.getString(4)));
-                customer.setAddress(rs.getString(5));
-                customer.setPassword(rs.getString(6));
-                customer.setImg(rs.getString(7)); // ✅ set img
-                System.out.println("FindByEmail called with: " + email + ", img=" + customer.getImg());
-            } else {
-                throw new UsernameNotFoundException("User not found");
+                Customer customer = new Customer();
+                customer.setId(rs.getInt("id"));
+                customer.setName(rs.getString("name"));
+                customer.setEmail(rs.getString("email"));
+                customer.setPassword(rs.getString("password"));
+                customer.setRole(Role.valueOf(rs.getString("role")));
+                customer.setAddress(rs.getString("address"));
+                customer.setImg(rs.getString("img"));
+
+                System.out.println(
+                        "FindByEmail called with: " + email + ", img=" + customer.getImg()
+                );
+
+                return customer; // ⬅⬅⬅ RẤT QUAN TRỌNG
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+
+            throw new UsernameNotFoundException("User not found");
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
-        return customer;
     }
+
 
 
 
@@ -68,7 +74,7 @@ public class CustomerDA {
             pst.setString(1, a.getName());
             pst.setString(2, a.getEmail());
             pst.setString(3, a.getPassword());
-            pst.setString(4, a.getRole().name());
+            pst.setString(4, a.getRole() != null ? a.getRole().name() : "CUSTOMER");
             pst.setString(5, a.getAddress());
             pst.setString(6, a.getImg()); // ✅ Lưu ảnh
             int x = pst.executeUpdate();
@@ -582,7 +588,7 @@ public class CustomerDA {
             pst.setString(1, a.getName());
             pst.setString(2, a.getEmail());
             pst.setString(3, a.getAddress());
-            pst.setString(4, a.getImg()); // ✅ Cập nhật ảnh
+            pst.setString(4, a.getImg()); //Cập nhật ảnh
             pst.setInt(5, a.getId());
             int x = pst.executeUpdate();
             if (x != -1) return a;
