@@ -52,6 +52,15 @@ public class CustomerDA {
 
             return null; // ✅ không thấy user thì trả null
 
+                System.out.println(
+                        "FindByEmail called with: " + email + ", img=" + customer.getImg()
+                );
+
+                return customer; // ⬅⬅⬅ RẤT QUAN TRỌNG
+            }
+
+            throw new UsernameNotFoundException("User not found");
+
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
