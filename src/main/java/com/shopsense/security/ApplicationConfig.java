@@ -32,24 +32,28 @@ public class ApplicationConfig {
 		AuthProvider authProvider = new AuthProvider(userDetailsService());
 		return authProvider;
 	}
-	
+
 	@Bean
 	UserDetailsService userDetailsService() {
-		return new UserDetailsService() {
-			@Override
-			public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-				UserDetails u = null;
-				u = adminDA.findByEmail(username);
-				if(u == null) {
-					u = customerDA.findByEmail(username);
-				}
-				if(u == null) {
-					u = sellerDA.findByEmail(username);
-				}
-				return u;
+		return username -> {
+			String email = username == null ? "" : username.trim();
+			UserDetails u = null;
+
+			try { u = adminDA.findByEmail(email); } catch (Exception ignored) {}
+			if (u == null) {
+				try { u = customerDA.findByEmail(email); } catch (Exception ignored) {}
 			}
+			if (u == null) {
+				try { u = sellerDA.findByEmail(email); } catch (Exception ignored) {}
+			}
+
+			if (u == null) {
+				throw new UsernameNotFoundException("User not found with email: " + email);
+			}
+			return u;
 		};
 	}
+
 
 	@Bean
 	AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {

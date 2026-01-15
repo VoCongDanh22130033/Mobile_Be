@@ -6,7 +6,7 @@ import java.sql.DriverManager;
 public class db {
 	final private String DB_NAME = "shop_sense";
     final private String DB_USER = "root";
-    final private String DB_PASS = "";
+    final private String DB_PASS = "123456";
     
     private static db dbInstance = null;
     private Connection con;

@@ -2,6 +2,8 @@ package com.shopsense.controller;
 
 import java.util.List;
 
+import com.shopsense.model.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,11 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.shopsense.dao.CustomerDA;
 import com.shopsense.dto.AuthRequest;
 import com.shopsense.dto.AuthResponse;
-import com.shopsense.model.CartItem;
-import com.shopsense.model.Customer;
-import com.shopsense.model.Order;
-import com.shopsense.model.OrderDetails;
-import com.shopsense.model.Product;
 import com.shopsense.service.AuthService;
 
 @CrossOrigin(origins = "*")
@@ -29,9 +26,12 @@ public class CustomerController {
 
 	@Autowired
 	CustomerDA da;
-	
+
 	@Autowired
 	AuthService authService;
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
 
 	@PostMapping(value = "/customer/login")
 	public AuthResponse login(@RequestBody AuthRequest a) {
@@ -40,12 +40,28 @@ public class CustomerController {
 
 	@PostMapping(value = "/customer/signup")
 	public Customer signup(@RequestBody Customer a) {
-		// Nếu muốn mặc định ảnh avatar có thể set trước khi lưu
+
 		if (a.getImg() == null || a.getImg().isEmpty()) {
-			a.setImg("default-avatar.png"); // đường dẫn mặc định
+			a.setImg("default-avatar.png");
 		}
+
+		if (a.getRole() == null) {
+			a.setRole(Role.CUSTOMER);
+		}
+
+		a.setPassword(passwordEncoder.encode(a.getPassword()));
 		return da.signup(a);
 	}
+
+	@RestController
+	public class TestController {
+
+		@GetMapping("/ping")
+		public String ping() {
+			return "OK";
+		}
+	}
+
 	@PutMapping(value = "/customer/update")
 	public Customer updateCustomer(@RequestBody Customer a) {
 		return da.updateCustomer(a); // DAO update đã bao gồm img
@@ -59,27 +75,25 @@ public class CustomerController {
 
 	@GetMapping(value = "/product/{productId}")
 	public Product getProduct(@PathVariable("productId") int productId) {
-		CustomerDA d = new CustomerDA();
-		return d.getProduct(productId);
+		return da.getProduct(productId);
 	}
 
 	@GetMapping(value = "/products")
 	public List<Product> getProducts() {
-		CustomerDA d = new CustomerDA();
-		return d.getProducts();
+		return da.getProducts();
 	}
+
 
 	@PostMapping(value = "/customer/cart")
 	public CartItem addToCart(@RequestBody CartItem a) {
-		CustomerDA d = new CustomerDA();
-		return d.addToCart(a);
+		return da.addToCart(a);
 	}
 
 	@PutMapping(value = "/customer/cart")
 	public boolean updateCart(@RequestBody CartItem a) {
-		CustomerDA d = new CustomerDA();
-		return d.updateCart(a);
+		return da.updateCart(a);
 	}
+
 
 	@DeleteMapping(value = "/customer/cart")
 	public boolean removeFromCart(@RequestParam int id) {
