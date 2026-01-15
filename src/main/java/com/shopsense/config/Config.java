@@ -7,7 +7,6 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-// ✅ CHỈ GIỮ LẠI CÁC HÀM UTILS ĐƯỢC SỬ DỤNG TRONG LOGIC MỚI
 public class Config {
     // Các hằng số mặc định
     public static String vnp_Version = "2.1.0";

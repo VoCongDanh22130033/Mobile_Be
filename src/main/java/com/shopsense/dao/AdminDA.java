@@ -27,7 +27,7 @@ public class AdminDA {
 
 	@Autowired
 	EmailService mailer;
-	
+
 	public Admin findByEmail(String email) throws UsernameNotFoundException {
 		Admin admin = null;
 		try {
@@ -55,8 +55,8 @@ public class AdminDA {
 		try {
 			pst = db.get().prepareStatement(
 					"SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, p.category, p.stock_status, p.stock_count, p.status, s.store_name, p.seller_id " +
-					"FROM products p " +
-					"JOIN sellers s ON p.seller_id = s.id");
+							"FROM products p " +
+							"JOIN sellers s ON p.seller_id = s.id");
 			ResultSet rs = pst.executeQuery();
 			Product p;
 			while (rs.next()) {

@@ -2,6 +2,8 @@ package com.shopsense.controller;
 
 import java.util.List;
 
+import com.shopsense.model.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,16 +14,13 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
 import com.shopsense.dao.CustomerDA;
 import com.shopsense.dto.AuthRequest;
 import com.shopsense.dto.AuthResponse;
-import com.shopsense.model.CartItem;
-import com.shopsense.model.Customer;
-import com.shopsense.model.Order;
-import com.shopsense.model.OrderDetails;
-import com.shopsense.model.Product;
 import com.shopsense.service.AuthService;
+import com.shopsense.dto.FirebaseLoginRequest;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -29,27 +28,60 @@ public class CustomerController {
 
 	@Autowired
 	CustomerDA da;
-	
+
 	@Autowired
 	AuthService authService;
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
 
 	@PostMapping(value = "/customer/login")
 	public AuthResponse login(@RequestBody AuthRequest a) {
 		return authService.login(a);
 	}
+	@PostMapping(value = "/customer/login/firebase")
+	public AuthResponse loginWithFirebase(@RequestBody FirebaseLoginRequest req) {
+		return authService.loginWithFirebase(req.getIdToken());
+	}
 
 	@PostMapping(value = "/customer/signup")
 	public Customer signup(@RequestBody Customer a) {
-		// Nếu muốn mặc định ảnh avatar có thể set trước khi lưu
+
 		if (a.getImg() == null || a.getImg().isEmpty()) {
-			a.setImg("default-avatar.png"); // đường dẫn mặc định
+			a.setImg("default-avatar.png");
 		}
+
+		if (a.getRole() == null) {
+			a.setRole(Role.CUSTOMER);
+		}
+
 		return da.signup(a);
 	}
-	@PutMapping(value = "/customer/update")
-	public Customer updateCustomer(@RequestBody Customer a) {
-		return da.updateCustomer(a); // DAO update đã bao gồm img
+
+
+	@RestController
+	public class TestController {
+
+		@GetMapping("/ping")
+		public String ping() {
+			return "OK";
+		}
 	}
+
+	@PutMapping(value = "/customer/profile")
+	public Customer updateCustomer(@RequestBody Customer a) {
+		return da.updateCustomer(a);
+	}
+
+	@GetMapping("/customer/profile")
+	public Customer profile(Authentication authentication) {
+		String email = authentication.getName();
+		Customer c = da.findByEmail(email);
+		if (c == null) return null;
+		c.setPassword(null);
+		return c;
+	}
+
 
 
 	@GetMapping(value = "/customer/{customerId}")
@@ -59,27 +91,25 @@ public class CustomerController {
 
 	@GetMapping(value = "/product/{productId}")
 	public Product getProduct(@PathVariable("productId") int productId) {
-		CustomerDA d = new CustomerDA();
-		return d.getProduct(productId);
+		return da.getProduct(productId);
 	}
 
 	@GetMapping(value = "/products")
 	public List<Product> getProducts() {
-		CustomerDA d = new CustomerDA();
-		return d.getProducts();
+		return da.getProducts();
 	}
+
 
 	@PostMapping(value = "/customer/cart")
 	public CartItem addToCart(@RequestBody CartItem a) {
-		CustomerDA d = new CustomerDA();
-		return d.addToCart(a);
+		return da.addToCart(a);
 	}
 
 	@PutMapping(value = "/customer/cart")
 	public boolean updateCart(@RequestBody CartItem a) {
-		CustomerDA d = new CustomerDA();
-		return d.updateCart(a);
+		return da.updateCart(a);
 	}
+
 
 	@DeleteMapping(value = "/customer/cart")
 	public boolean removeFromCart(@RequestParam int id) {
