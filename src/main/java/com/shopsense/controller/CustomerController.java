@@ -14,11 +14,13 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
 import com.shopsense.dao.CustomerDA;
 import com.shopsense.dto.AuthRequest;
 import com.shopsense.dto.AuthResponse;
 import com.shopsense.service.AuthService;
+import com.shopsense.dto.FirebaseLoginRequest;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -37,6 +39,10 @@ public class CustomerController {
 	public AuthResponse login(@RequestBody AuthRequest a) {
 		return authService.login(a);
 	}
+	@PostMapping(value = "/customer/login/firebase")
+	public AuthResponse loginWithFirebase(@RequestBody FirebaseLoginRequest req) {
+		return authService.loginWithFirebase(req.getIdToken());
+	}
 
 	@PostMapping(value = "/customer/signup")
 	public Customer signup(@RequestBody Customer a) {
@@ -49,9 +55,9 @@ public class CustomerController {
 			a.setRole(Role.CUSTOMER);
 		}
 
-		a.setPassword(passwordEncoder.encode(a.getPassword()));
 		return da.signup(a);
 	}
+
 
 	@RestController
 	public class TestController {
@@ -62,10 +68,20 @@ public class CustomerController {
 		}
 	}
 
-	@PutMapping(value = "/customer/update")
+	@PutMapping(value = "/customer/profile")
 	public Customer updateCustomer(@RequestBody Customer a) {
-		return da.updateCustomer(a); // DAO update đã bao gồm img
+		return da.updateCustomer(a);
 	}
+
+	@GetMapping("/customer/profile")
+	public Customer profile(Authentication authentication) {
+		String email = authentication.getName();
+		Customer c = da.findByEmail(email);
+		if (c == null) return null;
+		c.setPassword(null);
+		return c;
+	}
+
 
 
 	@GetMapping(value = "/customer/{customerId}")

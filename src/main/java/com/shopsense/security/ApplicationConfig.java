@@ -17,16 +17,16 @@ import com.shopsense.dao.SellerDA;
 
 @Configuration
 public class ApplicationConfig {
-	
+
 	@Autowired
 	AdminDA adminDA;
-	
+
 	@Autowired
 	CustomerDA customerDA;
-	
+
 	@Autowired
 	SellerDA sellerDA;
-	
+
 	@Bean
 	AuthProvider authProvider() {
 		AuthProvider authProvider = new AuthProvider(userDetailsService());
@@ -59,7 +59,7 @@ public class ApplicationConfig {
 	AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
 		return config.getAuthenticationManager();
 	}
-	
+
 	@Bean
 	PasswordEncoder passwordEncoder() {
 		return new BCryptPasswordEncoder();

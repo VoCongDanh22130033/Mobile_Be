@@ -34,7 +34,7 @@ public class CustomerDA {
                     "SELECT id, name, email, password, role, address, img " +
                             "FROM customers WHERE email = ?"
             );
-            pst.setString(1, email);
+            pst.setString(1, email == null ? null : email.trim());
 
             ResultSet rs = pst.executeQuery();
 
@@ -47,6 +47,10 @@ public class CustomerDA {
                 customer.setRole(Role.valueOf(rs.getString("role")));
                 customer.setAddress(rs.getString("address"));
                 customer.setImg(rs.getString("img"));
+                return customer;
+            }
+
+            return null; // ✅ không thấy user thì trả null
 
                 System.out.println(
                         "FindByEmail called with: " + email + ", img=" + customer.getImg()
@@ -61,6 +65,7 @@ public class CustomerDA {
             throw new RuntimeException(e);
         }
     }
+
 
 
 

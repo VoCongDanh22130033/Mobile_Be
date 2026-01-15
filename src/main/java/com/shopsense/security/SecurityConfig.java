@@ -26,41 +26,47 @@ public class SecurityConfig {
 
 	@Autowired
 	JwtAuthFilter jwtAuthFilter;
-	
+
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		CorsConfiguration corsConfiguration = new CorsConfiguration();
-        corsConfiguration.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
-        corsConfiguration.setAllowedOrigins(List.of("*"));
-        corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PUT", "OPTIONS", "PATCH", "DELETE"));
-        corsConfiguration.setAllowCredentials(true);
-        corsConfiguration.setExposedHeaders(List.of("Authorization"));
-        
 		return http
 				.csrf(csrf -> csrf.disable())
 				.cors(Customizer.withDefaults())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
+						//PUBLIC endpoints (KHÔNG cần token)
 						.requestMatchers(
 								"/admin/login",
 								"/customer/login",
 								"/customer/signup",
-								"/customer/cart"
+								"/customer/login/firebase",
+								"/ping",
+								"/error",
+								"/uploads/**",
+								"/reports/**"
 						).permitAll()
+
+						//OPTIONS preflight (nếu cần)
+						.requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+
+						//Role-based endpoints
 						.requestMatchers("/admin/**").hasAuthority(Role.ADMIN.name())
 						.requestMatchers("/seller/**").hasAuthority(Role.SELLER.name())
 						.requestMatchers("/customer/**").hasAuthority(Role.CUSTOMER.name())
+
+						//còn lại public
 						.requestMatchers(
 								"/coupon/check",
 								"/collectionpoint/search",
 								"/upload",
-								"/uploads/**",
-								"/reports/**",
 								"/**"
 						).permitAll()
-						.anyRequest().authenticated())
+
+						.anyRequest().authenticated()
+				)
 				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 				.build();
 	}
+
 	// Mã hóa mật khẩu
 }
