@@ -94,9 +94,13 @@ public class CustomerController {
 		return da.getProduct(productId);
 	}
 
-	@GetMapping(value = "/products")
-	public List<Product> getProducts() {
-		return da.getProducts();
+	@GetMapping("/products")
+	public List<Product> getProducts(
+			@RequestParam int page,
+			@RequestParam int size,
+			@RequestParam(required = false, defaultValue = "0") int categoryId
+	) {
+		return da.getProductsByCategory(categoryId, page, size);
 	}
 
 

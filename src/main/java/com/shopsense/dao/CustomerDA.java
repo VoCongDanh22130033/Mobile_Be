@@ -27,6 +27,7 @@ public class CustomerDA {
 
     @Autowired
     EmailService mailer;
+
     // find By Email
     public Customer findByEmail(String email) {
         try {
@@ -47,27 +48,20 @@ public class CustomerDA {
                 customer.setRole(Role.valueOf(rs.getString("role")));
                 customer.setAddress(rs.getString("address"));
                 customer.setImg(rs.getString("img"));
-                return customer;
-            }
-
-            return null; // ✅ không thấy user thì trả null
 
                 System.out.println(
                         "FindByEmail called with: " + email + ", img=" + customer.getImg()
                 );
 
-                return customer; // ⬅⬅⬅ RẤT QUAN TRỌNG
+                return customer;
             }
 
-            throw new UsernameNotFoundException("User not found");
+            return null; // không tìm thấy user
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
-
-
-
 
 
     // sign up
@@ -118,6 +112,7 @@ public class CustomerDA {
         }
         return p;
     }
+
     public Product getProduct(int productId) {
         Product p = null;
         try {
@@ -151,6 +146,54 @@ public class CustomerDA {
         }
         return p;
     }
+    public List<Product> getProductsByCategory(int categoryId, int page, int size) {
+        List<Product> list = new ArrayList<>();
+
+        if (page < 1) page = 1;   // ⭐ FIX QUAN TRỌNG
+        if (size <= 0) size = 10;
+
+        int offset = (page - 1) * size;
+
+        String sql =
+                "SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, " +
+                        "p.category_id, p.stock_status, p.stock_count, p.status, p.seller_id, s.store_name " +
+                        "FROM products p " +
+                        "JOIN sellers s ON p.seller_id = s.id " +
+                        "WHERE p.status = 'Active' AND s.status = 'Active' " +
+                        "AND (? = 0 OR p.category_id = ?) " +
+                        "LIMIT ? OFFSET ?";
+
+        try {
+            pst = db.get().prepareStatement(sql);
+            pst.setInt(1, categoryId);
+            pst.setInt(2, categoryId);
+            pst.setInt(3, size);
+            pst.setInt(4, offset);
+
+            ResultSet rs = pst.executeQuery();
+            while (rs.next()) {
+                Product p = new Product();
+                p.setId(rs.getInt(1));
+                p.setTitle(rs.getString(2));
+                p.setThumbnailUrl(rs.getString(3));
+                p.setDescription(rs.getString(4));
+                p.setRegularPrice(rs.getString(5));
+                p.setSalePrice(rs.getString(6));
+                p.setCategory(rs.getString(7));
+                p.setStockStatus(rs.getString(8));
+                p.setStockCount(rs.getString(9));
+                p.setStatus(rs.getString(10));
+                p.setSellerId(rs.getInt(11));
+                p.setStoreName(rs.getString(12));
+                list.add(p);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+
     public List<Product> getProducts() {
         List<Product> list = new ArrayList<>();
         try {
@@ -187,6 +230,7 @@ public class CustomerDA {
         }
         return list;
     }
+
     // Add Card
     public CartItem addToCart(CartItem a) {
         try {
@@ -212,6 +256,7 @@ public class CustomerDA {
         }
         return null;
     }
+
     public boolean updateCart(CartItem a) {
         try {
             pst = db.get().prepareStatement("UPDATE carts SET quantity = ?, sub_total = ? WHERE id = ?");
@@ -227,6 +272,7 @@ public class CustomerDA {
         }
         return false;
     }
+
     public boolean removeFromCart(int id) {
         try {
             pst = db.get().prepareStatement("DELETE FROM carts WHERE id = ?");
@@ -585,6 +631,7 @@ public class CustomerDA {
         }
         return false;
     }
+
     public Customer updateCustomer(Customer a) {
         try {
             pst = db.get().prepareStatement(
