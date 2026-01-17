@@ -19,12 +19,12 @@ import io.jsonwebtoken.security.Keys;
 public class JwtService {
 
 	private final String SECRET_KEY = "Rzvq27ENrTsFB+Vd6VFwpJXa6rU27MGmy9QUOAtxp8rRFP4cZFf4DW/qqHN7ij1d";
-	
+
 	// generate token with user
 	public String generateToken(UserDetails userDetails) {
 		return generateToken(new HashMap<>(), userDetails);
 	}
-	
+
 	// generate token with user and extra claims
 	public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
 		return Jwts
@@ -48,7 +48,7 @@ public class JwtService {
 		return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
 	}
 
-	
+
 	// helper methods
 	private boolean isTokenExpired(String token) {
 		return extractExpiration(token).before(new Date());
@@ -66,7 +66,7 @@ public class JwtService {
 	public Claims extractAllClaims(String token) {
 		return Jwts.parserBuilder().setSigningKey(getSignInKey()).build().parseClaimsJws(token).getBody();
 	}
-	
+
 	private Key getSignInKey() {
 		byte[] keyBytes = Decoders.BASE64.decode(SECRET_KEY);
 		return Keys.hmacShaKeyFor(keyBytes);

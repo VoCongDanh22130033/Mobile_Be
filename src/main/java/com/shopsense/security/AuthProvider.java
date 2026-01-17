@@ -1,5 +1,6 @@
 package com.shopsense.security;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -7,21 +8,29 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class AuthProvider implements AuthenticationProvider {
-	
+
 	private final UserDetailsService userDetailsService;
 
+	@Autowired
+	PasswordEncoder passwordEncoder;
+
 	@Override
-	public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+	public Authentication authenticate(Authentication authentication) {
 		String username = authentication.getName();
 		String password = authentication.getCredentials().toString();
+
 		UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-		if (password.equals(userDetails.getPassword())) {
-			return new UsernamePasswordAuthenticationToken(username, password, userDetails.getAuthorities());
+
+		if (passwordEncoder.matches(password, userDetails.getPassword())) {
+			return new UsernamePasswordAuthenticationToken(
+					userDetails, null, userDetails.getAuthorities()
+			);
 		} else {
 			throw new BadCredentialsException("Invalid credentials");
 		}
@@ -29,6 +38,6 @@ public class AuthProvider implements AuthenticationProvider {
 
 	@Override
 	public boolean supports(Class<?> authentication) {
-		return authentication.equals(UsernamePasswordAuthenticationToken.class);
+		return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
 	}
 }

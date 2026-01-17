@@ -20,7 +20,7 @@ import com.shopsense.service.FileService;
 import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = "*") // Allow all origins for mobile app
 public class FileController {
 
 	@Autowired

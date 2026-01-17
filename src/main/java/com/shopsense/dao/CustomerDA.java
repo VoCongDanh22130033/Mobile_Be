@@ -27,36 +27,41 @@ public class CustomerDA {
 
     @Autowired
     EmailService mailer;
+
     // find By Email
-    public Customer findByEmail(String email) throws UsernameNotFoundException {
-        Customer customer = null;
+    public Customer findByEmail(String email) {
         try {
             pst = db.get().prepareStatement(
-                    "SELECT c.id, c.name, c.email, c.role, c.address, c.password, c.img " +
-                            "FROM customers c WHERE c.email = ?"
+                    "SELECT id, name, email, password, role, address, img " +
+                            "FROM customers WHERE email = ?"
             );
+            pst.setString(1, email == null ? null : email.trim());
 
-            pst.setString(1, email);
             ResultSet rs = pst.executeQuery();
-            if (rs.next()) {
-                customer = new Customer();
-                customer.setId(rs.getInt(1));
-                customer.setName(rs.getString(2));
-                customer.setEmail(rs.getString(3));
-                customer.setRole(Role.valueOf(rs.getString(4)));
-                customer.setAddress(rs.getString(5));
-                customer.setPassword(rs.getString(6));
-                customer.setImg(rs.getString(7)); // ✅ set img
-                System.out.println("FindByEmail called with: " + email + ", img=" + customer.getImg());
-            } else {
-                throw new UsernameNotFoundException("User not found");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return customer;
-    }
 
+            if (rs.next()) {
+                Customer customer = new Customer();
+                customer.setId(rs.getInt("id"));
+                customer.setName(rs.getString("name"));
+                customer.setEmail(rs.getString("email"));
+                customer.setPassword(rs.getString("password"));
+                customer.setRole(Role.valueOf(rs.getString("role")));
+                customer.setAddress(rs.getString("address"));
+                customer.setImg(rs.getString("img"));
+
+                System.out.println(
+                        "FindByEmail called with: " + email + ", img=" + customer.getImg()
+                );
+
+                return customer;
+            }
+
+            return null; // không tìm thấy user
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 
     // sign up
@@ -68,7 +73,7 @@ public class CustomerDA {
             pst.setString(1, a.getName());
             pst.setString(2, a.getEmail());
             pst.setString(3, a.getPassword());
-            pst.setString(4, a.getRole().name());
+            pst.setString(4, a.getRole() != null ? a.getRole().name() : "CUSTOMER");
             pst.setString(5, a.getAddress());
             pst.setString(6, a.getImg()); // ✅ Lưu ảnh
             int x = pst.executeUpdate();
@@ -107,6 +112,7 @@ public class CustomerDA {
         }
         return p;
     }
+
     public Product getProduct(int productId) {
         Product p = null;
         try {
@@ -140,6 +146,54 @@ public class CustomerDA {
         }
         return p;
     }
+    public List<Product> getProductsByCategory(int categoryId, int page, int size) {
+        List<Product> list = new ArrayList<>();
+
+        if (page < 1) page = 1;   // ⭐ FIX QUAN TRỌNG
+        if (size <= 0) size = 10;
+
+        int offset = (page - 1) * size;
+
+        String sql =
+                "SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, " +
+                        "p.category_id, p.stock_status, p.stock_count, p.status, p.seller_id, s.store_name " +
+                        "FROM products p " +
+                        "JOIN sellers s ON p.seller_id = s.id " +
+                        "WHERE p.status = 'Active' AND s.status = 'Active' " +
+                        "AND (? = 0 OR p.category_id = ?) " +
+                        "LIMIT ? OFFSET ?";
+
+        try {
+            pst = db.get().prepareStatement(sql);
+            pst.setInt(1, categoryId);
+            pst.setInt(2, categoryId);
+            pst.setInt(3, size);
+            pst.setInt(4, offset);
+
+            ResultSet rs = pst.executeQuery();
+            while (rs.next()) {
+                Product p = new Product();
+                p.setId(rs.getInt(1));
+                p.setTitle(rs.getString(2));
+                p.setThumbnailUrl(rs.getString(3));
+                p.setDescription(rs.getString(4));
+                p.setRegularPrice(rs.getString(5));
+                p.setSalePrice(rs.getString(6));
+                p.setCategory(rs.getString(7));
+                p.setStockStatus(rs.getString(8));
+                p.setStockCount(rs.getString(9));
+                p.setStatus(rs.getString(10));
+                p.setSellerId(rs.getInt(11));
+                p.setStoreName(rs.getString(12));
+                list.add(p);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+
     public List<Product> getProducts() {
         List<Product> list = new ArrayList<>();
         try {
@@ -176,6 +230,7 @@ public class CustomerDA {
         }
         return list;
     }
+
     // Add Card
     public CartItem addToCart(CartItem a) {
         try {
@@ -201,6 +256,7 @@ public class CustomerDA {
         }
         return null;
     }
+
     public boolean updateCart(CartItem a) {
         try {
             pst = db.get().prepareStatement("UPDATE carts SET quantity = ?, sub_total = ? WHERE id = ?");
@@ -216,6 +272,7 @@ public class CustomerDA {
         }
         return false;
     }
+
     public boolean removeFromCart(int id) {
         try {
             pst = db.get().prepareStatement("DELETE FROM carts WHERE id = ?");
@@ -574,6 +631,7 @@ public class CustomerDA {
         }
         return false;
     }
+
     public Customer updateCustomer(Customer a) {
         try {
             pst = db.get().prepareStatement(
@@ -582,7 +640,7 @@ public class CustomerDA {
             pst.setString(1, a.getName());
             pst.setString(2, a.getEmail());
             pst.setString(3, a.getAddress());
-            pst.setString(4, a.getImg()); // ✅ Cập nhật ảnh
+            pst.setString(4, a.getImg()); //Cập nhật ảnh
             pst.setInt(5, a.getId());
             int x = pst.executeUpdate();
             if (x != -1) return a;

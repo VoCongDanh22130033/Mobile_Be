@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.shopsense.db;
@@ -27,7 +28,10 @@ public class AdminDA {
 
 	@Autowired
 	EmailService mailer;
-	
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
+
 	public Admin findByEmail(String email) throws UsernameNotFoundException {
 		Admin admin = null;
 		try {
@@ -53,10 +57,14 @@ public class AdminDA {
 	public List<Product> getAllProducts() {
 		List<Product> list = new ArrayList<>();
 		try {
+			// Try to include category_id and category name if available
 			pst = db.get().prepareStatement(
-					"SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, p.category, p.stock_status, p.stock_count, p.status, s.store_name, p.seller_id " +
-					"FROM products p " +
-					"JOIN sellers s ON p.seller_id = s.id");
+					"SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, " +
+							"COALESCE(c.title, p.category) as category, p.stock_status, p.stock_count, p.status, " +
+							"s.store_name, p.seller_id, COALESCE(p.category_id, 0) as category_id " +
+							"FROM products p " +
+							"LEFT JOIN sellers s ON p.seller_id = s.id " +
+							"LEFT JOIN categories c ON p.category_id = c.id");
 			ResultSet rs = pst.executeQuery();
 			Product p;
 			while (rs.next()) {
@@ -73,36 +81,59 @@ public class AdminDA {
 				p.setStatus(rs.getString(10));
 				p.setStoreName(rs.getString(11));
 				p.setSellerId(rs.getInt(12));
+				p.setCategoryId(rs.getInt(13));
 				list.add(p);
 			}
 		} catch (Exception e) {
-			System.out.println(e);
-			e.printStackTrace(); // In lỗi để debug
+			System.out.println("Error in getAllProducts: " + e.getMessage());
+			e.printStackTrace();
 		}
 		return list;
 	}
 
 	public Product createProduct(Product a) {
 		try {
-			pst = db.get().prepareStatement(
-					"INSERT INTO products (title, thumbnail_url, description, regular_price, sale_price, category, stock_status, stock_count, seller_id, status)"
-							+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-			pst.setString(1, a.getTitle());
-			pst.setString(2, a.getThumbnailUrl());
-			pst.setString(3, a.getDescription());
-			pst.setString(4, a.getRegularPrice());
-			pst.setString(5, a.getSalePrice());
-			pst.setString(6, a.getCategory());
-			pst.setString(7, a.getStockStatus());
-			pst.setString(8, a.getStockCount());
-			pst.setInt(9, a.getSellerId());
-			pst.setString(10, a.getStatus() != null ? a.getStatus() : "Pending");
+			// Support both category_id and category string for backward compatibility
+			String sql;
+			if (a.getCategoryId() > 0) {
+				// Use category_id if provided
+				sql = "INSERT INTO products (title, thumbnail_url, description, regular_price, sale_price, category, category_id, stock_status, stock_count, seller_id, status) " +
+						"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+				pst = db.get().prepareStatement(sql);
+				pst.setString(1, a.getTitle() != null ? a.getTitle() : "");
+				pst.setString(2, a.getThumbnailUrl() != null ? a.getThumbnailUrl() : "");
+				pst.setString(3, a.getDescription() != null ? a.getDescription() : "");
+				pst.setString(4, a.getRegularPrice() != null ? a.getRegularPrice() : "0");
+				pst.setString(5, a.getSalePrice() != null ? a.getSalePrice() : "0");
+				pst.setString(6, a.getCategory() != null ? a.getCategory() : "");
+				pst.setInt(7, a.getCategoryId());
+				pst.setString(8, a.getStockStatus() != null ? a.getStockStatus() : "IN_STOCK");
+				pst.setString(9, a.getStockCount() != null ? a.getStockCount() : "0");
+				pst.setInt(10, a.getSellerId() > 0 ? a.getSellerId() : 1);
+				pst.setString(11, a.getStatus() != null ? a.getStatus() : "ACTIVE");
+			} else {
+				// Fallback to category string
+				sql = "INSERT INTO products (title, thumbnail_url, description, regular_price, sale_price, category, stock_status, stock_count, seller_id, status) " +
+						"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+				pst = db.get().prepareStatement(sql);
+				pst.setString(1, a.getTitle() != null ? a.getTitle() : "");
+				pst.setString(2, a.getThumbnailUrl() != null ? a.getThumbnailUrl() : "");
+				pst.setString(3, a.getDescription() != null ? a.getDescription() : "");
+				pst.setString(4, a.getRegularPrice() != null ? a.getRegularPrice() : "0");
+				pst.setString(5, a.getSalePrice() != null ? a.getSalePrice() : "0");
+				pst.setString(6, a.getCategory() != null ? a.getCategory() : "");
+				pst.setString(7, a.getStockStatus() != null ? a.getStockStatus() : "IN_STOCK");
+				pst.setString(8, a.getStockCount() != null ? a.getStockCount() : "0");
+				pst.setInt(9, a.getSellerId() > 0 ? a.getSellerId() : 1);
+				pst.setString(10, a.getStatus() != null ? a.getStatus() : "ACTIVE");
+			}
+			
 			int x = pst.executeUpdate();
-			if (x != -1) {
+			if (x > 0) {
 				return a;
 			}
 		} catch (Exception e) {
-			System.out.println(e);
+			System.out.println("Error in createProduct: " + e.getMessage());
 			e.printStackTrace();
 		}
 		return null;
@@ -110,24 +141,47 @@ public class AdminDA {
 
 	public Product updateProduct(Product a) {
 		try {
-			pst = db.get().prepareStatement(
-					"UPDATE products SET title = ?, thumbnail_url = ?, description = ?, regular_price = ?, sale_price = ?, category = ?, stock_status = ?, stock_count = ?, status = ? WHERE id = ?");
-			pst.setString(1, a.getTitle());
-			pst.setString(2, a.getThumbnailUrl());
-			pst.setString(3, a.getDescription());
-			pst.setString(4, a.getRegularPrice());
-			pst.setString(5, a.getSalePrice());
-			pst.setString(6, a.getCategory());
-			pst.setString(7, a.getStockStatus());
-			pst.setString(8, a.getStockCount());
-			pst.setString(9, a.getStatus());
-			pst.setInt(10, a.getId());
+			// Support both category_id and category string for backward compatibility
+			String sql;
+			if (a.getCategoryId() > 0) {
+				// Use category_id if provided
+				sql = "UPDATE products SET title = ?, thumbnail_url = ?, description = ?, regular_price = ?, sale_price = ?, " +
+						"category = ?, category_id = ?, stock_status = ?, stock_count = ?, status = ? WHERE id = ?";
+				pst = db.get().prepareStatement(sql);
+				pst.setString(1, a.getTitle() != null ? a.getTitle() : "");
+				pst.setString(2, a.getThumbnailUrl() != null ? a.getThumbnailUrl() : "");
+				pst.setString(3, a.getDescription() != null ? a.getDescription() : "");
+				pst.setString(4, a.getRegularPrice() != null ? a.getRegularPrice() : "0");
+				pst.setString(5, a.getSalePrice() != null ? a.getSalePrice() : "0");
+				pst.setString(6, a.getCategory() != null ? a.getCategory() : "");
+				pst.setInt(7, a.getCategoryId());
+				pst.setString(8, a.getStockStatus() != null ? a.getStockStatus() : "IN_STOCK");
+				pst.setString(9, a.getStockCount() != null ? a.getStockCount() : "0");
+				pst.setString(10, a.getStatus() != null ? a.getStatus() : "ACTIVE");
+				pst.setInt(11, a.getId());
+			} else {
+				// Fallback to category string only
+				sql = "UPDATE products SET title = ?, thumbnail_url = ?, description = ?, regular_price = ?, sale_price = ?, " +
+						"category = ?, stock_status = ?, stock_count = ?, status = ? WHERE id = ?";
+				pst = db.get().prepareStatement(sql);
+				pst.setString(1, a.getTitle() != null ? a.getTitle() : "");
+				pst.setString(2, a.getThumbnailUrl() != null ? a.getThumbnailUrl() : "");
+				pst.setString(3, a.getDescription() != null ? a.getDescription() : "");
+				pst.setString(4, a.getRegularPrice() != null ? a.getRegularPrice() : "0");
+				pst.setString(5, a.getSalePrice() != null ? a.getSalePrice() : "0");
+				pst.setString(6, a.getCategory() != null ? a.getCategory() : "");
+				pst.setString(7, a.getStockStatus() != null ? a.getStockStatus() : "IN_STOCK");
+				pst.setString(8, a.getStockCount() != null ? a.getStockCount() : "0");
+				pst.setString(9, a.getStatus() != null ? a.getStatus() : "ACTIVE");
+				pst.setInt(10, a.getId());
+			}
+			
 			int x = pst.executeUpdate();
-			if (x != -1) {
+			if (x >= 0) { // x can be 0 if no rows updated, but that's still a valid response
 				return a;
 			}
 		} catch (Exception e) {
-			System.out.println(e);
+			System.out.println("Error in updateProduct: " + e.getMessage());
 			e.printStackTrace();
 		}
 		return null;
@@ -190,20 +244,31 @@ public class AdminDA {
 	public List<Customer> getAllCustomers() {
 		List<Customer> list = new ArrayList<>();
 		try {
-			pst = db.get().prepareStatement("SELECT customer_id, name, email, status, role FROM customers");
+			// Try customer_id first, fallback to id if needed
+			// Use COALESCE to handle both column names
+			pst = db.get().prepareStatement(
+					"SELECT COALESCE(customer_id, id) as id, name, email, status, role, " +
+					"COALESCE(address, '') as address, COALESCE(img, 'default-avatar.png') as img, " +
+					"COALESCE(email_verified, false) as email_verified " +
+					"FROM customers");
 			ResultSet rs = pst.executeQuery();
 			Customer a;
 			while (rs.next()) {
 				a = new Customer();
-				a.setId(rs.getInt("customer_id"));
+				a.setId(rs.getInt("id"));
 				a.setName(rs.getString("name"));
 				a.setEmail(rs.getString("email"));
 				a.setStatus(rs.getString("status"));
-				a.setRole(Role.valueOf(rs.getString("role")));
+				String roleStr = rs.getString("role");
+				a.setRole(Role.valueOf(roleStr));
+				a.setAddress(rs.getString("address"));
+				a.setImg(rs.getString("img"));
+				a.setEmailVerified(rs.getBoolean("email_verified"));
 				list.add(a);
 			}
 		} catch (Exception e) {
-			System.out.println(e);
+			System.out.println("Error in getAllCustomers: " + e.getMessage());
+			e.printStackTrace();
 		}
 		return list;
 	}
@@ -221,6 +286,113 @@ public class AdminDA {
 			System.out.println(e);
 		}
 		return null;
+	}
+
+	// Create customer (for admin)
+	public Customer createCustomer(Customer a) {
+		try {
+			// Encode password if provided
+			String encodedPassword = a.getPassword() != null && !a.getPassword().isEmpty() 
+				? passwordEncoder.encode(a.getPassword()) 
+				: passwordEncoder.encode("defaultPassword123"); // Default password if not provided
+
+			// Convert role - handle both "USER" from frontend and Role enum
+			Role role;
+			if (a.getRole() != null) {
+				role = a.getRole(); // Already a Role enum
+			} else {
+				role = Role.CUSTOMER; // Default
+			}
+
+			pst = db.get().prepareStatement(
+				"INSERT INTO customers (name, email, password, role, address, status, email_verified, img) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+			);
+			pst.setString(1, a.getName() != null ? a.getName() : "");
+			pst.setString(2, a.getEmail() != null ? a.getEmail() : "");
+			pst.setString(3, encodedPassword);
+			pst.setString(4, role.name());
+			pst.setString(5, a.getAddress() != null ? a.getAddress() : "");
+			pst.setString(6, a.getStatus() != null ? a.getStatus() : "ACTIVE");
+			pst.setBoolean(7, a.isEmailVerified());
+			pst.setString(8, a.getImg() != null ? a.getImg() : "default-avatar.png");
+			
+			int x = pst.executeUpdate();
+			if (x > 0) {
+				// Set role back to customer object for response
+				a.setRole(role);
+				return a;
+			}
+		} catch (Exception e) {
+			System.out.println("Error in createCustomer: " + e.getMessage());
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	// Update customer (full update for admin)
+	public Customer updateCustomerFull(Customer a) {
+		try {
+			// Convert role - handle both "USER" from frontend and Role enum
+			Role role = a.getRole() != null ? a.getRole() : Role.CUSTOMER;
+			
+			String sql;
+			// Try customer_id first, fallback to id
+			String idColumn = "customer_id"; // Default to customer_id
+			
+			// If password is provided, update it. Otherwise, don't touch the password field
+			if (a.getPassword() != null && !a.getPassword().isEmpty()) {
+				String encodedPassword = passwordEncoder.encode(a.getPassword());
+				sql = "UPDATE customers SET name = ?, email = ?, password = ?, role = ?, address = ?, status = ?, email_verified = ?, img = ? WHERE " + idColumn + " = ?";
+				pst = db.get().prepareStatement(sql);
+				pst.setString(1, a.getName() != null ? a.getName() : "");
+				pst.setString(2, a.getEmail() != null ? a.getEmail() : "");
+				pst.setString(3, encodedPassword);
+				pst.setString(4, role.name());
+				pst.setString(5, a.getAddress() != null ? a.getAddress() : "");
+				pst.setString(6, a.getStatus() != null ? a.getStatus() : "ACTIVE");
+				pst.setBoolean(7, a.isEmailVerified());
+				pst.setString(8, a.getImg() != null ? a.getImg() : "default-avatar.png");
+				pst.setInt(9, a.getId());
+			} else {
+				sql = "UPDATE customers SET name = ?, email = ?, role = ?, address = ?, status = ?, email_verified = ?, img = ? WHERE " + idColumn + " = ?";
+				pst = db.get().prepareStatement(sql);
+				pst.setString(1, a.getName() != null ? a.getName() : "");
+				pst.setString(2, a.getEmail() != null ? a.getEmail() : "");
+				pst.setString(3, role.name());
+				pst.setString(4, a.getAddress() != null ? a.getAddress() : "");
+				pst.setString(5, a.getStatus() != null ? a.getStatus() : "ACTIVE");
+				pst.setBoolean(6, a.isEmailVerified());
+				pst.setString(7, a.getImg() != null ? a.getImg() : "default-avatar.png");
+				pst.setInt(8, a.getId());
+			}
+			
+			int x = pst.executeUpdate();
+			if (x >= 0) { // x can be 0 if no rows updated
+				a.setRole(role); // Set converted role back
+				return a;
+			}
+		} catch (Exception e) {
+			System.out.println("Error in updateCustomerFull: " + e.getMessage());
+			e.printStackTrace();
+		}
+		return null;
+	}
+
+	// Delete customer
+	public boolean deleteCustomer(int id) {
+		boolean success = false;
+		try {
+			pst = db.get().prepareStatement("DELETE FROM customers WHERE customer_id = ?");
+			pst.setInt(1, id);
+			int r = pst.executeUpdate();
+			if (r != -1) {
+				success = true;
+			}
+		} catch (Exception e) {
+			System.out.println(e);
+			e.printStackTrace();
+		}
+		return success;
 	}
 
 	public List<Order> getOrders() {
