@@ -4,6 +4,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -88,25 +90,45 @@ public class AdminDA {
 
 	public Product createProduct(Product a) {
 		try {
+			// Validation
+			if (a.getTitle() == null || a.getTitle().trim().isEmpty()) {
+				System.out.println("Error: Product title is required");
+				return null;
+			}
+			if (a.getRegularPrice() == null || a.getRegularPrice().trim().isEmpty()) {
+				System.out.println("Error: Product regular price is required");
+				return null;
+			}
+			if (a.getThumbnailUrl() == null || a.getThumbnailUrl().trim().isEmpty()) {
+				System.out.println("Error: Product thumbnail is required");
+				return null;
+			}
+			
 			pst = db.get().prepareStatement(
 					"INSERT INTO products (title, thumbnail_url, description, regular_price, sale_price, category, stock_status, stock_count, seller_id, status)"
 							+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-			pst.setString(1, a.getTitle());
-			pst.setString(2, a.getThumbnailUrl());
-			pst.setString(3, a.getDescription());
-			pst.setString(4, a.getRegularPrice());
-			pst.setString(5, a.getSalePrice());
-			pst.setString(6, a.getCategory());
-			pst.setString(7, a.getStockStatus());
-			pst.setString(8, a.getStockCount());
-			pst.setInt(9, a.getSellerId());
-			pst.setString(10, a.getStatus() != null ? a.getStatus() : "Pending");
+			pst.setString(1, a.getTitle().trim());
+			pst.setString(2, a.getThumbnailUrl() != null ? a.getThumbnailUrl().trim() : "");
+			pst.setString(3, a.getDescription() != null ? a.getDescription().trim() : "");
+			pst.setString(4, a.getRegularPrice().trim());
+			pst.setString(5, a.getSalePrice() != null && !a.getSalePrice().trim().isEmpty() ? a.getSalePrice().trim() : a.getRegularPrice().trim());
+			pst.setString(6, a.getCategory() != null ? a.getCategory().trim() : "Other");
+			pst.setString(7, a.getStockStatus() != null ? a.getStockStatus().trim() : "IN_STOCK");
+			pst.setString(8, a.getStockCount() != null && !a.getStockCount().trim().isEmpty() ? a.getStockCount().trim() : "0");
+			pst.setInt(9, a.getSellerId() > 0 ? a.getSellerId() : 1);
+			pst.setString(10, a.getStatus() != null && !a.getStatus().trim().isEmpty() ? a.getStatus().trim() : "ACTIVE");
 			int x = pst.executeUpdate();
-			if (x != -1) {
+			if (x > 0) {
+				// Lấy ID vừa tạo
+				pst = db.get().prepareStatement("SELECT LAST_INSERT_ID()");
+				ResultSet rs = pst.executeQuery();
+				if (rs.next()) {
+					a.setId(rs.getInt(1));
+				}
 				return a;
 			}
 		} catch (Exception e) {
-			System.out.println(e);
+			System.out.println("Error creating product: " + e.getMessage());
 			e.printStackTrace();
 		}
 		return null;
@@ -114,24 +136,38 @@ public class AdminDA {
 
 	public Product updateProduct(Product a) {
 		try {
+			// Validation
+			if (a.getId() <= 0) {
+				System.out.println("Error: Product ID is required for update");
+				return null;
+			}
+			if (a.getTitle() == null || a.getTitle().trim().isEmpty()) {
+				System.out.println("Error: Product title is required");
+				return null;
+			}
+			if (a.getRegularPrice() == null || a.getRegularPrice().trim().isEmpty()) {
+				System.out.println("Error: Product regular price is required");
+				return null;
+			}
+			
 			pst = db.get().prepareStatement(
 					"UPDATE products SET title = ?, thumbnail_url = ?, description = ?, regular_price = ?, sale_price = ?, category = ?, stock_status = ?, stock_count = ?, status = ? WHERE id = ?");
-			pst.setString(1, a.getTitle());
-			pst.setString(2, a.getThumbnailUrl());
-			pst.setString(3, a.getDescription());
-			pst.setString(4, a.getRegularPrice());
-			pst.setString(5, a.getSalePrice());
-			pst.setString(6, a.getCategory());
-			pst.setString(7, a.getStockStatus());
-			pst.setString(8, a.getStockCount());
-			pst.setString(9, a.getStatus());
+			pst.setString(1, a.getTitle().trim());
+			pst.setString(2, a.getThumbnailUrl() != null ? a.getThumbnailUrl().trim() : "");
+			pst.setString(3, a.getDescription() != null ? a.getDescription().trim() : "");
+			pst.setString(4, a.getRegularPrice().trim());
+			pst.setString(5, a.getSalePrice() != null && !a.getSalePrice().trim().isEmpty() ? a.getSalePrice().trim() : a.getRegularPrice().trim());
+			pst.setString(6, a.getCategory() != null ? a.getCategory().trim() : "Other");
+			pst.setString(7, a.getStockStatus() != null ? a.getStockStatus().trim() : "IN_STOCK");
+			pst.setString(8, a.getStockCount() != null && !a.getStockCount().trim().isEmpty() ? a.getStockCount().trim() : "0");
+			pst.setString(9, a.getStatus() != null && !a.getStatus().trim().isEmpty() ? a.getStatus().trim() : "ACTIVE");
 			pst.setInt(10, a.getId());
 			int x = pst.executeUpdate();
-			if (x != -1) {
+			if (x > 0) {
 				return a;
 			}
 		} catch (Exception e) {
-			System.out.println(e);
+			System.out.println("Error updating product: " + e.getMessage());
 			e.printStackTrace();
 		}
 		return null;
@@ -215,22 +251,45 @@ public class AdminDA {
 
 	public Customer createCustomer(Customer c) {
 		try {
+			// Validation
+			if (c.getName() == null || c.getName().trim().isEmpty()) {
+				System.out.println("Error: Customer name is required");
+				return null;
+			}
+			if (c.getEmail() == null || c.getEmail().trim().isEmpty()) {
+				System.out.println("Error: Customer email is required");
+				return null;
+			}
+			// Validate email format
+			Pattern emailPattern = Pattern.compile("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$");
+			Matcher emailMatcher = emailPattern.matcher(c.getEmail().trim());
+			if (!emailMatcher.matches()) {
+				System.out.println("Error: Invalid email format");
+				return null;
+			}
+			if (c.getPassword() == null || c.getPassword().trim().isEmpty()) {
+				System.out.println("Error: Customer password is required");
+				return null;
+			}
+			if (c.getPassword().trim().length() < 6) {
+				System.out.println("Error: Password must be at least 6 characters");
+				return null;
+			}
+			
 			pst = db.get().prepareStatement(
 					"INSERT INTO customers (name, email, password, role, address, img, status, email_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-			pst.setString(1, c.getName());
-			pst.setString(2, c.getEmail());
-			// Mã hóa password nếu có, nếu không có thì tạo password mặc định
-			String encodedPassword = c.getPassword() != null && !c.getPassword().isEmpty()
-					? passwordEncoder.encode(c.getPassword())
-					: passwordEncoder.encode("password123"); // Password mặc định
+			pst.setString(1, c.getName().trim());
+			pst.setString(2, c.getEmail().trim().toLowerCase());
+			// Mã hóa password
+			String encodedPassword = passwordEncoder.encode(c.getPassword().trim());
 			pst.setString(3, encodedPassword);
 			pst.setString(4, c.getRole() != null ? c.getRole().name() : "CUSTOMER");
-			pst.setString(5, c.getAddress() != null ? c.getAddress() : "");
-			pst.setString(6, c.getImg() != null ? c.getImg() : "default-avatar.png");
-			pst.setString(7, c.getStatus() != null ? c.getStatus() : "ACTIVE");
+			pst.setString(5, c.getAddress() != null ? c.getAddress().trim() : "");
+			pst.setString(6, c.getImg() != null ? c.getImg().trim() : "default-avatar.png");
+			pst.setString(7, c.getStatus() != null ? c.getStatus().trim() : "ACTIVE");
 			pst.setBoolean(8, c.isEmailVerified());
 			int x = pst.executeUpdate();
-			if (x != -1) {
+			if (x > 0) {
 				// Lấy ID vừa tạo
 				pst = db.get().prepareStatement("SELECT LAST_INSERT_ID()");
 				ResultSet rs = pst.executeQuery();
@@ -241,7 +300,7 @@ public class AdminDA {
 				return c;
 			}
 		} catch (Exception e) {
-			System.out.println(e);
+			System.out.println("Error creating customer: " + e.getMessage());
 			e.printStackTrace();
 		}
 		return null;
@@ -249,35 +308,61 @@ public class AdminDA {
 
 	public Customer updateCustomer(Customer c) {
 		try {
+			// Validation
+			if (c.getId() <= 0) {
+				System.out.println("Error: Customer ID is required for update");
+				return null;
+			}
+			if (c.getName() == null || c.getName().trim().isEmpty()) {
+				System.out.println("Error: Customer name is required");
+				return null;
+			}
+			if (c.getEmail() == null || c.getEmail().trim().isEmpty()) {
+				System.out.println("Error: Customer email is required");
+				return null;
+			}
+			// Validate email format
+			Pattern emailPattern = Pattern.compile("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$");
+			Matcher emailMatcher = emailPattern.matcher(c.getEmail().trim());
+			if (!emailMatcher.matches()) {
+				System.out.println("Error: Invalid email format");
+				return null;
+			}
+			// Validate password if provided
+			if (c.getPassword() != null && !c.getPassword().trim().isEmpty() && c.getPassword().trim().length() < 6) {
+				System.out.println("Error: Password must be at least 6 characters");
+				return null;
+			}
+			
 			// Kiểm tra xem có cập nhật password không
-			if (c.getPassword() != null && !c.getPassword().isEmpty()) {
+			if (c.getPassword() != null && !c.getPassword().trim().isEmpty()) {
 				pst = db.get().prepareStatement(
 						"UPDATE customers SET name = ?, email = ?, password = ?, role = ?, address = ?, status = ? WHERE id = ?");
-				pst.setString(1, c.getName());
-				pst.setString(2, c.getEmail());
-				pst.setString(3, passwordEncoder.encode(c.getPassword()));
+				pst.setString(1, c.getName().trim());
+				pst.setString(2, c.getEmail().trim().toLowerCase());
+				pst.setString(3, passwordEncoder.encode(c.getPassword().trim()));
 				pst.setString(4, c.getRole() != null ? c.getRole().name() : "CUSTOMER");
-				pst.setString(5, c.getAddress() != null ? c.getAddress() : "");
-				pst.setString(6, c.getStatus() != null ? c.getStatus() : "ACTIVE");
+				pst.setString(5, c.getAddress() != null ? c.getAddress().trim() : "");
+				pst.setString(6, c.getStatus() != null ? c.getStatus().trim() : "ACTIVE");
 				pst.setInt(7, c.getId());
 			} else {
 				// Không cập nhật password
 				pst = db.get().prepareStatement(
 						"UPDATE customers SET name = ?, email = ?, role = ?, address = ?, status = ? WHERE id = ?");
-				pst.setString(1, c.getName());
-				pst.setString(2, c.getEmail());
+				pst.setString(1, c.getName().trim());
+				pst.setString(2, c.getEmail().trim().toLowerCase());
 				pst.setString(3, c.getRole() != null ? c.getRole().name() : "CUSTOMER");
-				pst.setString(4, c.getAddress() != null ? c.getAddress() : "");
-				pst.setString(5, c.getStatus() != null ? c.getStatus() : "ACTIVE");
+				pst.setString(4, c.getAddress() != null ? c.getAddress().trim() : "");
+				pst.setString(5, c.getStatus() != null ? c.getStatus().trim() : "ACTIVE");
 				pst.setInt(6, c.getId());
 			}
 			int x = pst.executeUpdate();
-			if (x != -1) {
+			if (x > 0) {
 				c.setPassword(null); // Không trả về password
 				return c;
 			}
 		} catch (Exception e) {
-			System.out.println(e);
+			System.out.println("Error updating customer: " + e.getMessage());
 			e.printStackTrace();
 		}
 		return null;

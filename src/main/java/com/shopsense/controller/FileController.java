@@ -1,5 +1,6 @@
 package com.shopsense.controller;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -35,11 +36,48 @@ public class FileController {
 		return m;
 	}
 
-	@GetMapping(value = "uploads/{fileName}", produces = MediaType.ALL_VALUE)
+	@GetMapping(value = "uploads/{fileName:.+}", produces = MediaType.ALL_VALUE)
 	public void fileDownload(@PathVariable("fileName") String fileName, HttpServletResponse response)
 			throws IOException {
-		InputStream is = fileService.getFile(fileName);
-		response.setContentType(MediaType.ALL_VALUE);
-		StreamUtils.copy(is, response.getOutputStream());
+		try {
+			InputStream is = fileService.getFile(fileName);
+			
+			// Set proper content type based on file extension
+			String contentType = getContentType(fileName);
+			response.setContentType(contentType);
+			response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
+			response.setHeader("ngrok-skip-browser-warning", "true");
+			response.setHeader("Cache-Control", "public, max-age=31536000");
+			
+			StreamUtils.copy(is, response.getOutputStream());
+			response.getOutputStream().flush();
+		} catch (FileNotFoundException e) {
+			response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+			response.setContentType(MediaType.TEXT_PLAIN_VALUE);
+			response.getWriter().write("File not found: " + fileName);
+		} catch (IOException e) {
+			response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+			response.setContentType(MediaType.TEXT_PLAIN_VALUE);
+			response.getWriter().write("Error reading file: " + e.getMessage());
+		}
+	}
+	
+	private String getContentType(String fileName) {
+		String extension = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+		switch (extension) {
+			case "jpg":
+			case "jpeg":
+				return "image/jpeg";
+			case "png":
+				return "image/png";
+			case "gif":
+				return "image/gif";
+			case "webp":
+				return "image/webp";
+			case "pdf":
+				return "application/pdf";
+			default:
+				return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+		}
 	}
 }

@@ -118,10 +118,12 @@ public class CustomerDA {
         try {
             pst = db.get().prepareStatement(
                     "SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, " +
-                            "p.category, p.stock_status, p.stock_count, s.id AS seller_id, s.store_name, p.status " +
+                            "COALESCE(p.category, 'Other') as category, p.stock_status, p.stock_count, p.seller_id, " +
+                            "COALESCE(s.store_name, 'Admin Store') as store_name, p.status " +
                             "FROM products p " +
-                            "JOIN sellers s ON p.seller_id = s.id " +
-                            "WHERE p.id = ? AND p.status = 'Active' AND s.status = 'Active'"
+                            "LEFT JOIN sellers s ON p.seller_id = s.id " +
+                            "WHERE p.id = ? AND (p.status = 'ACTIVE' OR p.status = 'Active') " +
+                            "AND (s.status IS NULL OR s.status = 'Active' OR s.status = 'ACTIVE')"
             );
 
             pst.setInt(1, productId);
@@ -142,7 +144,8 @@ public class CustomerDA {
                 p.setStatus(rs.getString(12));
             }
         } catch (Exception e) {
-            System.out.println(e);
+            System.out.println("Error in getProduct: " + e.getMessage());
+            e.printStackTrace();
         }
         return p;
     }
@@ -154,21 +157,41 @@ public class CustomerDA {
 
         int offset = (page - 1) * size;
 
-        String sql =
-                "SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, " +
-                        "p.category_id, p.stock_status, p.stock_count, p.status, p.seller_id, s.store_name " +
-                        "FROM products p " +
-                        "JOIN sellers s ON p.seller_id = s.id " +
-                        "WHERE p.status = 'Active' AND s.status = 'Active' " +
-                        "AND (? = 0 OR p.category_id = ?) " +
-                        "LIMIT ? OFFSET ?";
+        // Nếu categoryId = 0, lấy tất cả sản phẩm
+        // Nếu categoryId > 0, filter theo category_id (nếu có) hoặc category name
+        String sql;
+        if (categoryId == 0) {
+            sql = "SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, " +
+                    "COALESCE(p.category, 'Other') as category, p.stock_status, p.stock_count, p.status, p.seller_id, " +
+                    "COALESCE(s.store_name, 'Admin Store') as store_name " +
+                    "FROM products p " +
+                    "LEFT JOIN sellers s ON p.seller_id = s.id " +
+                    "WHERE (p.status = 'ACTIVE' OR p.status = 'Active') " +
+                    "AND (s.status IS NULL OR s.status = 'Active' OR s.status = 'ACTIVE') " +
+                    "LIMIT ? OFFSET ?";
+        } else {
+            // Filter theo category_id nếu có, hoặc category name nếu không
+            sql = "SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, " +
+                    "COALESCE(p.category, 'Other') as category, p.stock_status, p.stock_count, p.status, p.seller_id, " +
+                    "COALESCE(s.store_name, 'Admin Store') as store_name " +
+                    "FROM products p " +
+                    "LEFT JOIN sellers s ON p.seller_id = s.id " +
+                    "WHERE (p.status = 'ACTIVE' OR p.status = 'Active') " +
+                    "AND (s.status IS NULL OR s.status = 'Active' OR s.status = 'ACTIVE') " +
+                    "AND (p.category_id = ? OR p.category_id IS NULL) " +
+                    "LIMIT ? OFFSET ?";
+        }
 
         try {
             pst = db.get().prepareStatement(sql);
-            pst.setInt(1, categoryId);
-            pst.setInt(2, categoryId);
-            pst.setInt(3, size);
-            pst.setInt(4, offset);
+            if (categoryId == 0) {
+                pst.setInt(1, size);
+                pst.setInt(2, offset);
+            } else {
+                pst.setInt(1, categoryId);
+                pst.setInt(2, size);
+                pst.setInt(3, offset);
+            }
 
             ResultSet rs = pst.executeQuery();
             while (rs.next()) {
@@ -188,6 +211,7 @@ public class CustomerDA {
                 list.add(p);
             }
         } catch (Exception e) {
+            System.out.println("Error in getProductsByCategory: " + e.getMessage());
             e.printStackTrace();
         }
         return list;
@@ -199,10 +223,12 @@ public class CustomerDA {
         try {
             pst = db.get().prepareStatement(
                     "SELECT p.id, p.title, p.thumbnail_url, p.description, p.regular_price, p.sale_price, " +
-                            "p.category_id, p.stock_status, p.stock_count, p.status, p.seller_id, s.store_name " +
+                            "COALESCE(p.category, 'Other') as category, p.stock_status, p.stock_count, p.status, p.seller_id, " +
+                            "COALESCE(s.store_name, 'Admin Store') as store_name " +
                             "FROM products p " +
-                            "JOIN sellers s ON p.seller_id = s.id " +
-                            "WHERE p.status = 'Active' AND s.status = 'Active'"
+                            "LEFT JOIN sellers s ON p.seller_id = s.id " +
+                            "WHERE (p.status = 'ACTIVE' OR p.status = 'Active') " +
+                            "AND (s.status IS NULL OR s.status = 'Active' OR s.status = 'ACTIVE')"
             );
 
             ResultSet rs = pst.executeQuery();
@@ -226,7 +252,8 @@ public class CustomerDA {
             }
 
         } catch (Exception e) {
-            System.out.println(e);
+            System.out.println("Error in getProducts: " + e.getMessage());
+            e.printStackTrace();
         }
         return list;
     }
